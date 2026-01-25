@@ -1,0 +1,197 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL")
+}
+
+// =========================================
+// MODELS RELACIONADOS A PEDIDOS
+// =========================================
+
+model Customer {
+    id           String   @id @default(cuid())
+    customerId   String   @unique @map("customer_id")
+    createdAt    DateTime @map("created_at")
+    updatedAt    DateTime @updatedAt @map("updated_at")
+    incrementId  String?  @map("increment_id")
+    storeId      String?  @map("store_id")
+    websiteId    String?  @map("website_id")
+    createdIn    String?  @map("created_in")
+    email        String   @unique
+    firstname    String
+    middlename   String?
+    lastname     String
+    groupId      String?  @map("group_id")
+    prefix       String?
+    suffix       String?
+    dob          String?
+    taxvat       String?
+    confirmation String?
+    passwordHash String?  @map("password_hash")
+    syncedAt     DateTime @default(now()) @map("synced_at")
+    orders       Order[]
+
+    @@index([email])
+    @@index([groupId])
+    @@index([customerId])
+    @@map("customers")
+}
+
+model Order {
+    id                        String      @id @default(cuid())
+    orderId                   String?     @map("order_id")
+    incrementId               String      @unique @map("increment_id")
+    parentId                  String?     @map("parent_id")
+    storeId                   String?     @map("store_id")
+    createdAt                 DateTime    @map("created_at")
+    updatedAt                 DateTime    @updatedAt @map("updated_at")
+    isActive                  String?     @map("is_active")
+    customerId                String?     @map("customer_id")
+    taxAmount                 Decimal?    @map("tax_amount") @db.Decimal(10, 2)
+    shippingAmount            Decimal?    @map("shipping_amount") @db.Decimal(10, 2)
+    discountAmount            Decimal?    @map("discount_amount") @db.Decimal(10, 2)
+    subtotal                  Decimal?    @db.Decimal(10, 2)
+    grandTotal                Decimal     @map("grand_total") @db.Decimal(10, 2)
+    totalPaid                 Decimal?    @map("total_paid") @db.Decimal(10, 2)
+    totalRefunded             Decimal?    @map("total_refunded") @db.Decimal(10, 2)
+    totalQtyOrdered           Int?        @map("total_qty_ordered")
+    totalCanceled             Decimal?    @map("total_canceled") @db.Decimal(10, 2)
+    totalInvoiced             Decimal?    @map("total_invoiced") @db.Decimal(10, 2)
+    totalOnlineRefunded       Decimal?    @map("total_online_refunded") @db.Decimal(10, 2)
+    totalOfflineRefunded      Decimal?    @map("total_offline_refunded") @db.Decimal(10, 2)
+    baseTaxAmount             Decimal?    @map("base_tax_amount") @db.Decimal(10, 2)
+    baseShippingAmount        Decimal?    @map("base_shipping_amount") @db.Decimal(10, 2)
+    baseDiscountAmount        Decimal?    @map("base_discount_amount") @db.Decimal(10, 2)
+    baseSubtotal              Decimal?    @map("base_subtotal") @db.Decimal(10, 2)
+    baseGrandTotal            Decimal?    @map("base_grand_total") @db.Decimal(10, 2)
+    baseTotalPaid             Decimal?    @map("base_total_paid") @db.Decimal(10, 2)
+    baseTotalRefunded         Decimal?    @map("base_total_refunded") @db.Decimal(10, 2)
+    baseTotalQtyOrdered       Decimal?    @map("base_total_qty_ordered") @db.Decimal(10, 2)
+    baseTotalCanceled         Decimal?    @map("base_total_canceled") @db.Decimal(10, 2)
+    baseTotalInvoiced         Decimal?    @map("base_total_invoiced") @db.Decimal(10, 2)
+    baseTotalOnlineRefunded   Decimal?    @map("base_total_online_refunded") @db.Decimal(10, 2)
+    baseTotalOfflineRefunded  Decimal?    @map("base_total_offline_refunded") @db.Decimal(10, 2)
+    billingAddressId          String?     @map("billing_address_id")
+    billingFirstname          String?     @map("billing_firstname")
+    billingLastname           String?     @map("billing_lastname")
+    shippingAddressId         String?     @map("shipping_address_id")
+    shippingFirstname         String?     @map("shipping_firstname")
+    shippingLastname          String?     @map("shipping_lastname")
+    billingName               String?     @map("billing_name")
+    shippingName              String?     @map("shipping_name")
+    storeToBaseRate           Decimal?    @map("store_to_base_rate") @db.Decimal(12, 4)
+    storeToOrderRate          Decimal?    @map("store_to_order_rate") @db.Decimal(12, 4)
+    baseToGlobalRate          Decimal?    @map("base_to_global_rate") @db.Decimal(12, 4)
+    baseToOrderRate           Decimal?    @map("base_to_order_rate") @db.Decimal(12, 4)
+    weight                    Decimal?    @db.Decimal(8, 2)
+    storeName                 String?     @map("store_name")
+    remoteIp                  String?     @map("remote_ip")
+    status                    OrderStatus @default(PENDING)
+    state                     String?
+    appliedRuleIds            String?     @map("applied_rule_ids")
+    globalCurrencyCode        String?     @map("global_currency_code")
+    baseCurrencyCode          String?     @map("base_currency_code")
+    storeCurrencyCode         String?     @map("store_currency_code")
+    orderCurrencyCode         String?     @map("order_currency_code")
+    shippingMethod            String?     @map("shipping_method")
+    shippingDescription       String?     @map("shipping_description")
+    customerEmail             String      @map("customer_email")
+    customerFirstname         String      @map("customer_firstname")
+    customerLastname          String      @map("customer_lastname")
+    quoteId                   String?     @map("quote_id")
+    isVirtual                 String?     @map("is_virtual")
+    customerGroupId           String?     @map("customer_group_id")
+    customerNoteNotify        String?     @map("customer_note_notify")
+    customerIsGuest           String?     @map("customer_is_guest")
+    emailSent                 String?     @map("email_sent")
+    giftMessageId             String?     @map("gift_message_id")
+    giftMessage               String?     @map("gift_message")
+    billingCity               String?     @map("billing_city")
+    billingCountryId          String?     @map("billing_country_id")
+    billingPostcode           String?     @map("billing_postcode")
+    billingRegion             String?     @map("billing_region")
+    billingStreet             String?     @map("billing_street")
+    billingTelephone          String?     @map("billing_telephone")
+    shippingCity              String?     @map("shipping_city")
+    shippingCountryId         String?     @map("shipping_country_id")
+    shippingPostcode          String?     @map("shipping_postcode")
+    shippingRegion            String?     @map("shipping_region")
+    shippingStreet            String?     @map("shipping_street")
+    shippingTelephone         String?     @map("shipping_telephone")
+    syncedAt                  DateTime    @default(now()) @map("synced_at")
+    detailsFetched            Boolean     @default(false) @map("details_fetched")
+    detailsFetchedAt          DateTime?   @map("details_fetched_at")
+    shippingCompany           String?     @map("shipping_company")
+    shippingRegionId          Int?        @map("shipping_region_id")
+    shippingIsDefaultBilling  Boolean?    @map("shipping_is_default_billing")
+    shippingIsDefaultShipping Boolean?    @map("shipping_is_default_shipping")
+    shippingAddressUpdatedAt  DateTime?   @map("shipping_address_updated_at")
+    declarationDownloaded     Boolean     @default(false) @map("declaration_downloaded")
+    declarationDownloadedAt   DateTime?   @map("declaration_downloaded_at")
+    labelDownloaded           Boolean     @default(false) @map("label_downloaded")
+    labelDownloadedAt         DateTime?   @map("label_downloaded_at")
+    updatedFreeShipping       DateTime?   @map("updated_free_shipping")
+    items                     OrderItem[]
+    customer                  Customer?   @relation(fields: [customerId], references: [customerId])
+
+    @@index([incrementId])
+    @@index([customerId])
+    @@index([customerEmail])
+    @@index([status])
+    @@index([createdAt])
+    @@index([syncedAt])
+    @@index([detailsFetched])
+    @@map("orders")
+}
+
+model OrderItem {
+    id              String   @id @default(cuid())
+    orderId         String   @map("order_id")
+    itemId          String?  @map("item_id")
+    productId       String?  @map("product_id")
+    sku             String?
+    name            String
+    description     String?  @db.Text
+    weight          Decimal? @db.Decimal(8, 2)
+    qty             Decimal  @db.Decimal(10, 2)
+    price           Decimal  @db.Decimal(10, 2)
+    basePrice       Decimal? @map("base_price") @db.Decimal(10, 2)
+    originalPrice   Decimal? @map("original_price") @db.Decimal(10, 2)
+    taxAmount       Decimal? @map("tax_amount") @db.Decimal(10, 2)
+    taxPercent      Decimal? @map("tax_percent") @db.Decimal(5, 2)
+    discountAmount  Decimal? @map("discount_amount") @db.Decimal(10, 2)
+    discountPercent Decimal? @map("discount_percent") @db.Decimal(5, 2)
+    rowTotal        Decimal? @map("row_total") @db.Decimal(10, 2)
+    baseRowTotal    Decimal? @map("base_row_total") @db.Decimal(10, 2)
+    productType     String?  @map("product_type")
+    qtyOrdered      Decimal? @map("qty_ordered") @db.Decimal(10, 2)
+    qtyShipped      Decimal? @map("qty_shipped") @db.Decimal(10, 2)
+    qtyInvoiced     Decimal? @map("qty_invoiced") @db.Decimal(10, 2)
+    qtyCanceled     Decimal? @map("qty_canceled") @db.Decimal(10, 2)
+    qtyRefunded     Decimal? @map("qty_refunded") @db.Decimal(10, 2)
+    createdAt       DateTime @default(now()) @map("created_at")
+    updatedAt       DateTime @updatedAt @map("updated_at")
+    order           Order    @relation(fields: [orderId], references: [incrementId], onDelete: Cascade)
+
+    @@unique([orderId, itemId])
+    @@index([orderId])
+    @@index([productId])
+    @@index([sku])
+    @@map("order_items")
+}
+
+enum OrderStatus {
+    PENDING
+    PROCESSING
+    SHIPPED
+    COMPLETE
+    CANCELED
+    CLOSED
+    REFUNDED
+    HOLDED
+    PAYMENT_REVIEW
+    EM_PRODUCAO
+}

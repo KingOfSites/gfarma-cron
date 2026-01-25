@@ -1,161 +1,203 @@
-# Node.js HTTP Cron Scheduler
+# Galenica Cron - Sistema de Sincronização Automática
 
-![MIT License](https://img.shields.io/github/license/tsykin/cron-env)
-![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)
-![Docker Ready](https://img.shields.io/badge/docker-ready-blue)
+Sistema de agendamento de tarefas (cron jobs) para sincronização automática de pedidos do Magento com o banco de dados.
 
-A simple utility that enables scheduling multiple HTTP requests (cron jobs) using environment variables, `node-cron` and Node.js as a runtime.
+## 📋 Funcionalidades
 
-## Use Cases
+- ✅ Sincronização automática de pedidos dos últimos 3 dias
+- ✅ Configuração flexível via variáveis de ambiente
+- ✅ Suporte a múltiplos jobs simultâneos
+- ✅ Timeout configurável para requisições
+- ✅ Timezone customizável
+- ✅ Logs detalhados de execução
 
-This utility is ideal for:
+## 🚀 Como Usar
 
-- Scheduling recurring tasks for projects without a need for VPS SSH access. Instead, you expose an API endpoint in your app.
-- Centralizing cron job management, avoiding in-code implementations and/or writing same cron job implementation in multiple projects.
-- Scheduling tasks on an internal network, without exposing endpoints publicly.
+### 1. Configuração Inicial
 
-## Key Features
+Copie o arquivo de exemplo e configure suas variáveis:
 
-- 🌍 **Environment Variable Configuration:** Easily configure jobs using simple environment variables.
-- 🔄 **HTTP Method Support:** Supports all common HTTP methods (GET, POST, PUT, DELETE, PATCH).
-- 🔒 **Secure Job Configuration:** Secure jobs using URL parameters or request body.
-- 🐳 **Docker-Ready:** Simple deployment with Docker.
-- 🆓 **Open-Source:** Free to use under the MIT license.
-
-## Getting Started
-
-1. Clone this repository
-2. Install dependencies: `npm install`
-3. Create a `.env` file in the root directory and configure environment variables (see instructions below)
-4. Start development server: `npm run dev`
-
-## Deployment
-
-You can easily self-host this scheduler or deploy it in seconds using my Railway template:
-
-👉 [Deploy on Railway](https://railway.com/template/oIgT0x?referralCode=tsykin)
-
-## Configuration
-
-### Environment Variables
-
-The following environment variables are supported:
-
-| Variable        | Required | Description                                                                 | Example                                          |
-| --------------- | -------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
-| TIMEZONE        | No       | IANA timezone name (defaults to UTC)                                        | `TIMEZONE="America/New_York"`                    |
-| RUN_ON_START    | No       | Run jobs on startup (defaults to `false`)                                   | `RUN_ON_START="false"`                           |
-| REQUEST_TIMEOUT | No       | Request timeout in milliseconds (default: 60000 = 1 minute, 0 = no timeout) | `REQUEST_TIMEOUT="30000"`                        |
-| JOB{n}          | Yes      | Cron job configuration (see below)                                          | `JOB1="* * * * *::GET::https://api.example.com"` |
-
-#### Important notes
-
-**Environment Variable Formatting Rules.** Since some environment variables have to contain spaces or special characters, it's recommended to **use double quotes for all values.**
-
-**Development configuration.** During development or testing you can set `RUN_ON_START="true"` to run jobs on every file change to see result of changes faster.
-
-### Timezone
-
-The scheduler supports all IANA timezone names. Examples:
-
-- `TIMEZONE="UTC"` (default)
-- `TIMEZONE="America/New_York"`
-- `TIMEZONE="Europe/London"`
-- `TIMEZONE="Asia/Tokyo"`
-
-Note, that timezone is configured for all jobs.
-
-[See list of available timezones here.](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
-
-### Job Configuration
-
-Jobs are configured using environment variables in the following format:
-
-```
-JOB{n}="schedule::method::url::prop1=value1::prop2=value2"
+```bash
+cp .env.example .env
 ```
 
-Where:
+### 2. Configure o Dashboard URL
 
-- `{n}`: Job number (1, 2, 3, etc.)
-- `schedule`: Cron schedule expression
-- `method`: HTTP method (GET, POST, PUT, DELETE, PATCH)
-- `url`: Target URL
-- `prop{n}=value{n}`: Optional properties for request body
-
-Fields are separated by `::` (double colon).
-
-## Examples
-
-### Basic Jobs
-
-1. Simple GET request every minute:
+Edite o arquivo `.env` e ajuste a URL do seu dashboard na linha do JOB1:
 
 ```env
-JOB1="* * * * *::GET::https://api.example.com/ping"
+# Trocar localhost:3001 pela URL do seu dashboard se necessário
+JOB1=0 8-18/2 * * *::POST::http://localhost:3001/api/magento/orders/sync-3-days
 ```
 
-2. POST request every day at midnight:
+### 3. Instalar Dependências
+
+```bash
+npm install
+```
+
+### 4. Executar
+
+**Modo Desenvolvimento (com auto-reload):**
+```bash
+npm run dev
+```
+
+**Modo Produção:**
+```bash
+npm run build
+npm start
+```
+
+## 📅 Configuração de Schedule (Cron)
+
+O formato do cron é: `minuto hora dia mês dia-da-semana`
+
+### Exemplos Práticos:
+
+| Schedule | Descrição |
+|----------|-----------|
+| `*/5 * * * *` | A cada 5 minutos |
+| `0 */2 * * *` | A cada 2 horas |
+| `0 8-18/2 * * *` | A cada 2 horas das 8h às 18h |
+| `*/30 10-16 * * *` | A cada 30 min das 10h às 16h |
+| `0 0 * * *` | Todo dia à meia-noite |
+| `0 9 * * 1-5` | Às 9h de segunda a sexta |
+
+## 🔧 Jobs Disponíveis
+
+### JOB1: Sincronização de Pedidos (3 dias)
+
+Sincroniza pedidos dos últimos 3 dias automaticamente.
+
+**Configuração padrão:**
+- **Schedule:** `0 8-18/2 * * *` (a cada 2 horas das 8h às 18h)
+- **Endpoint:** `/api/magento/orders/sync-3-days`
+- **Método:** POST
+
+### Como Adicionar Mais Jobs
+
+Adicione novas linhas no `.env`:
 
 ```env
-JOB2="0 0 * * *::POST::https://api.example.com/daily-task"
+# Job personalizado - sincronizar pedidos a cada 30 minutos
+JOB2=*/30 * * * *::POST::http://localhost:3001/api/magento/orders/sync-3-days
+
+# Job diário - sincronizar última semana à meia-noite
+JOB3=0 0 * * *::POST::http://localhost:3001/api/magento/orders/sync-7-days
 ```
 
-### Advanced Jobs
+## 🎯 Endpoints do Dashboard
 
-1. POST request with properties:
+Os seguintes endpoints devem estar disponíveis no dashboard-galenica:
 
-```env
-JOB1="0 0 * * *::POST::https://api.example.com/task::userId=123::action=backup"
+- `POST /api/magento/orders/sync-3-days` - Sincroniza pedidos dos últimos 3 dias
+- `POST /api/magento/orders/sync-7-days` - Sincroniza pedidos dos últimos 7 dias (opcional)
+
+## ⚙️ Variáveis de Ambiente
+
+### Configurações Globais
+
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `TIMEZONE` | Timezone IANA (ex: America/Sao_Paulo) | `UTC` |
+| `RUN_ON_START` | Executar jobs ao iniciar? (true/false) | `false` |
+| `REQUEST_TIMEOUT` | Timeout em ms (0 = sem timeout) | `60000` |
+
+### Configuração de Jobs
+
+Formato: `SCHEDULE::METHOD::URL::prop1=value1::prop2=value2`
+
+**Componentes:**
+1. **SCHEDULE**: Expressão cron (5 partes)
+2. **METHOD**: HTTP method (GET, POST, PUT, DELETE, PATCH)
+3. **URL**: URL completa do endpoint
+4. **props** (opcional): Parâmetros adicionais no formato `key=value`
+
+## 📊 Monitoramento
+
+O cron exibe logs detalhados:
+
+```
+✅ Process for job 1 completed
+Made POST request to: http://localhost:3001/api/magento/orders/sync-3-days
+Response status: 200
+Completed at: 2026-01-12 14:00
 ```
 
-This will send a POST request with the body:
+## 🐳 Deploy com Docker
 
-```json
-{
-  "userId": "123",
-  "action": "backup"
-}
+Um Dockerfile está incluído para facilitar o deploy:
+
+```bash
+# Build
+docker build -t galenica-cron .
+
+# Run
+docker run -d --name galenica-cron --env-file .env galenica-cron
 ```
 
-2. Multiple jobs with different schedules:
+## 🛠️ Desenvolvimento
 
-```env
-JOB1="*/5 * * * *::GET::https://api.example.com/health"
-JOB2="0 0 * * *::POST::https://api.example.com/daily::task=backup"
-JOB3="0 */2 * * *::PUT::https://api.example.com/update::status=active"
+### Scripts Disponíveis
+
+```bash
+npm run dev          # Modo desenvolvimento com watch
+npm run build        # Build do TypeScript
+npm start            # Executar versão compilada
+npm run lint         # Verificar código
+npm run lint:fix     # Corrigir problemas de lint
+npm run typecheck    # Verificar tipos TypeScript
 ```
 
-## Validation
+### Estrutura do Projeto
 
-The scheduler includes comprehensive validation for all configuration:
+```
+cron-env/
+├── src/
+│   ├── index.ts           # Entry point principal
+│   ├── run.ts             # Utilitário de execução
+│   └── lib/
+│       ├── env.ts         # Parser de variáveis de ambiente
+│       ├── types.ts       # Definições de tipos
+│       ├── utils.ts       # Funções utilitárias
+│       └── constants.ts   # Constantes
+├── .env.example           # Template de configuração
+├── package.json
+└── README.md
+```
 
-- **Cron Schedule**: Validates correct cron expression format
-- **HTTP Method**: Must be one of: GET, POST, PUT, DELETE, PATCH
-- **URL**: Validates proper URL format
-- **Timezone**: Validates against IANA timezone database
-- **Properties**: Validates key-value pair format
+## 📝 Notas Importantes
 
-If validation fails, the scheduler will:
+1. **Sempre configure o TIMEZONE correto** para garantir que os jobs rodem nos horários esperados
+2. **Use REQUEST_TIMEOUT** adequado - sincronizações grandes podem demorar
+3. **Monitore os logs** para identificar problemas de sincronização
+4. **Evite sobrecarga** - não configure jobs muito frequentes
+5. **Teste primeiro** com `RUN_ON_START=true` antes de colocar em produção
 
-1. Log detailed error messages
-2. Exit with a non-zero status code
+## 🔍 Troubleshooting
 
-## Testing
+### Job não está executando
 
-In order to test your configuration you can use these services that quickly mock API endpoints:
+1. Verifique se o formato do cron está correto
+2. Confirme o timezone configurado
+3. Verifique se o dashboard está acessível
 
-- [Mockbin.io](https://mockbin.io/)
-- [Webhook.site](https://webhook.site/)
+### Timeout de requisição
 
-## Author
+1. Aumente o `REQUEST_TIMEOUT` no `.env`
+2. Verifique a performance do dashboard
+3. Considere reduzir o `batchSize` no endpoint
 
-[Aliaksandr Tsykin](https://github.com/tsykin)
+### Dashboard não responde
 
-## License
+1. Confirme que o dashboard está rodando
+2. Verifique a URL configurada no job
+3. Teste manualmente com curl:
+   ```bash
+   curl -X POST http://localhost:3001/api/magento/orders/sync-3-days
+   ```
 
-Licensed under the [MIT license](https://github.com/tsykin/cron-env/blob/main/LICENSE).
+## 📄 Licença
 
-## Contribution
-
-All PRs are welcome :)
+MIT
