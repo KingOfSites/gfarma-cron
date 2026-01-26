@@ -75,6 +75,8 @@ export interface SalesOrderEntity {
   order_currency_code?: string;
   shipping_method?: string;
   shipping_description?: string;
+  billing_shipping_method?: string;
+  billing_shipping_description?: string;
   customer_email: string;
   customer_firstname: string;
   customer_lastname: string;
@@ -534,6 +536,14 @@ function parseOrderInfoXml(xml: string): OrderDetailInfo {
     order.shipping_postcode = order.billing_postcode;
     order.shipping_country_id = order.billing_country_id;
     order.shipping_telephone = order.billing_telephone;
+  }
+
+  // 🔧 FIX: Se shipping_method/description vieram com prefixo billing_shipping_, copiar
+  if (!order.shipping_method && order.billing_shipping_method) {
+    order.shipping_method = order.billing_shipping_method;
+  }
+  if (!order.shipping_description && order.billing_shipping_description) {
+    order.shipping_description = order.billing_shipping_description;
   }
 
   return order as OrderDetailInfo;
