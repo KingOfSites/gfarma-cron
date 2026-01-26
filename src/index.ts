@@ -138,7 +138,7 @@ cron.schedule(
 if (env.runOnStart) {
   console.log('\n🏁 RUN_ON_START=true - Executando jobs imediatamente...\n');
 
-  performJob1()
+  performJob2()
     .then(() => {
       console.log('✅ JOB1 inicial concluído');
       return new Promise((r) => setTimeout(r, 5000)); // Aguardar 5s entre jobs

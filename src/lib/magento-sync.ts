@@ -1153,30 +1153,61 @@ export async function sync3Days(): Promise<SyncResult> {
 
 export async function syncLast50(): Promise<SyncResult> {
   try {
-    console.log('=== Sincronizando últimos 50 pedidos (sequencial) ===');
+    console.log('=== Sincronizando últimos 50 pedidos do Magento ===');
 
     if (!MAGENTO_API_USER || !MAGENTO_API_KEY) {
       throw new Error('Credenciais da API Magento não configuradas');
     }
 
-    // Buscar o último pedido no banco
-    const mostRecentOrder = await prisma.order.findFirst({
-      orderBy: { incrementId: 'desc' },
-      select: { incrementId: true },
+    const sessionId = await getMagentoSession();
+    console.log('✅ Sessão Magento obtida');
+
+    // Buscar lista de pedidos das últimas 48h para determinar os últimos 50
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+    console.log('📊 Buscando pedidos das últimas 48h do Magento para identificar os últimos 50...');
+    const ordersList = await getOrdersListWindowed(sessionId, {
+      updated_at: {
+        from: fmt(twoDaysAgo),
+        to: fmt(now),
+      },
     });
 
-    let startIncrementId: number;
-    if (mostRecentOrder) {
-      startIncrementId = parseInt(mostRecentOrder.incrementId) + 1;
-      console.log(`📊 Último pedido no banco: ${mostRecentOrder.incrementId}`);
-      console.log(`🔢 Começando do ID: ${startIncrementId}`);
-    } else {
-      startIncrementId = 100000000; // ID inicial padrão se o banco estiver vazio
-      console.log(`📊 Banco vazio, começando do ID: ${startIncrementId}`);
+    if (ordersList.length === 0) {
+      console.log('📊 Nenhum pedido encontrado nas últimas 48h');
+      return {
+        success: true,
+        ordersProcessed: 0,
+        ordersCreated: 0,
+        ordersUpdated: 0,
+        statusChanged: 0,
+        detailsFetched: 0,
+        errors: [],
+        summary: {
+          totalOrders: 0,
+          processedOrders: 0,
+          newOrders: 0,
+          updatedOrders: 0,
+          statusChanges: 0,
+          detailsFetched: 0,
+          errorCount: 0,
+        },
+      };
     }
 
-    const sessionId = await getMagentoSession();
-    console.log('✅ Sessão Magento obtida\n');
+    // Ordenar por incrementId decrescente e pegar os últimos 50
+    const sortedOrderIds = ordersList
+      .map((o) => parseInt(o.increment_id))
+      .filter((id) => !isNaN(id))
+      .sort((a, b) => b - a) // Decrescente (maior primeiro)
+      .slice(0, 50); // Pegar apenas os 50 maiores
+
+    const maxId = sortedOrderIds[0];
+    const minId = sortedOrderIds[sortedOrderIds.length - 1];
+
+    console.log(`📊 Últimos 50 pedidos do Magento: ${minId} até ${maxId}`);
+    console.log(`🔢 Total a sincronizar: ${sortedOrderIds.length} pedidos\n`);
 
     let ordersProcessed = 0;
     let ordersCreated = 0;
@@ -1185,11 +1216,10 @@ export async function syncLast50(): Promise<SyncResult> {
     let detailsFetched = 0;
     const errors: string[] = [];
 
-    // Buscar próximos 50 pedidos sequencialmente
-    const numOrders = 50;
-    for (let i = 0; i < numOrders; i++) {
-      const currentIncrementId = (startIncrementId + i).toString();
-      const progress = ((i + 1) / numOrders * 100).toFixed(1);
+    // Buscar cada pedido sequencialmente
+    for (let i = 0; i < sortedOrderIds.length; i++) {
+      const currentIncrementId = sortedOrderIds[i].toString();
+      const progress = (((i + 1) / sortedOrderIds.length) * 100).toFixed(1);
 
       try {
         // Verificar se já existe no banco ANTES de buscar no Magento
@@ -1279,7 +1309,7 @@ export async function syncLast50(): Promise<SyncResult> {
     }
 
     console.log('\n' + '='.repeat(50));
-    console.log('📊 RESUMO DA SINCRONIZAÇÃO SEQUENCIAL');
+    console.log('📊 RESUMO DA SINCRONIZAÇÃO DOS ÚLTIMOS 50');
     console.log('='.repeat(50));
     console.log(`✅ Total processado: ${ordersProcessed}`);
     console.log(`   ➕ Novos pedidos: ${ordersCreated}`);
@@ -1298,7 +1328,7 @@ export async function syncLast50(): Promise<SyncResult> {
       detailsFetched,
       errors,
       summary: {
-        totalOrders: numOrders,
+        totalOrders: sortedOrderIds.length,
         processedOrders: ordersProcessed,
         newOrders: ordersCreated,
         updatedOrders: ordersUpdated,
