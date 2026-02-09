@@ -452,6 +452,22 @@ async function getOrderInfo(sessionId: string, incrementId: string): Promise<Ord
   const parsed = parseOrderInfoXml(xml);
   if (!parsed.increment_id) parsed.increment_id = incrementId;
 
+  // Extrair dados do cliente do XML se não vieram no parse
+  if (!parsed.customer_firstname || !parsed.customer_lastname || !parsed.customer_email) {
+    const emailMatch = xml.match(/<customer_email[^>]*>([^<]*)<\/customer_email>/i);
+    const firstnameMatch = xml.match(/<customer_firstname[^>]*>([^<]*)<\/customer_firstname>/i);
+    const lastnameMatch = xml.match(/<customer_lastname[^>]*>([^<]*)<\/customer_lastname>/i);
+    if (emailMatch && emailMatch[1]) {
+      parsed.customer_email = emailMatch[1].trim();
+    }
+    if (firstnameMatch && firstnameMatch[1]) {
+      parsed.customer_firstname = firstnameMatch[1].trim();
+    }
+    if (lastnameMatch && lastnameMatch[1]) {
+      parsed.customer_lastname = lastnameMatch[1].trim();
+    }
+  }
+
   return parsed;
 }
 
@@ -637,11 +653,16 @@ async function ensureCustomer(order: SalesOrderEntity): Promise<string | null> {
 
 async function saveOrderToDatabase(order: SalesOrderEntity) {
   const safeCustomerId = await ensureCustomer(order);
+  // customerEmail é obrigatório no schema, então sempre precisa ter um valor
+  // Se não vier do XML, usar um valor padrão
   const customerEmail = order.customer_email || 'nao-informado@magento.com';
-  const customerFirstname = order.customer_firstname || 'Não informado';
+  // Se for OrderDetailInfo (tem items), usar valores exatos sem fallback para nomes
+  // Caso contrário, usar fallbacks para garantir que sempre tenha algum valor
+  const isOrderDetailInfo = 'items' in order;
+  const customerFirstname = order.customer_firstname || (isOrderDetailInfo ? null : 'Não informado');
   const customerLastname = order.customer_lastname || '';
 
-  const orderData = {
+  const orderData: any = {
     incrementId: order.increment_id,
     orderId: (order as any).order_id || null,
     parentId: order.parent_id || null,
@@ -649,7 +670,6 @@ async function saveOrderToDatabase(order: SalesOrderEntity) {
     createdAt: new Date(order.created_at),
     updatedAt: new Date(order.updated_at),
     isActive: order.is_active || null,
-    customerId: safeCustomerId,
     taxAmount: order.tax_amount ? parseFloat(order.tax_amount) : null,
     shippingAmount: order.shipping_amount ? parseFloat(order.shipping_amount) : null,
     discountAmount: order.discount_amount ? parseFloat(order.discount_amount) : null,
@@ -745,21 +765,71 @@ async function saveOrderDetailsToDatabase(orderDetails: OrderDetailInfo) {
   }
 
   const updateData: any = {
+    // Endereços de cobrança
     billingCity: orderDetails.billing_city || null,
     billingCountryId: orderDetails.billing_country_id || null,
     billingPostcode: orderDetails.billing_postcode || null,
     billingRegion: orderDetails.billing_region || null,
     billingStreet: orderDetails.billing_street || null,
     billingTelephone: orderDetails.billing_telephone || null,
+    billingFirstname: orderDetails.billing_firstname || null,
+    billingLastname: orderDetails.billing_lastname || null,
+    billingName: orderDetails.billing_name || null,
+    // Endereços de entrega
     shippingCity: orderDetails.shipping_city || null,
     shippingCountryId: orderDetails.shipping_country_id || null,
     shippingPostcode: orderDetails.shipping_postcode || null,
     shippingRegion: orderDetails.shipping_region || null,
     shippingStreet: orderDetails.shipping_street || null,
     shippingTelephone: orderDetails.shipping_telephone || null,
+    shippingFirstname: orderDetails.shipping_firstname || null,
+    shippingLastname: orderDetails.shipping_lastname || null,
+    shippingName: orderDetails.shipping_name || null,
+    // Métodos de envio
+    shippingMethod: orderDetails.shipping_method || null,
+    shippingDescription: orderDetails.shipping_description || null,
+    // Flag de detalhes buscados
     detailsFetched: true,
     detailsFetchedAt: new Date(),
   };
+
+  // SEMPRE atualizar dados do cliente do OrderDetailInfo (que vem de getOrderInfo)
+  // Isso garante que os nomes sejam salvos mesmo que venham vazios do XML
+  // O getOrderInfo retorna OrderDetailInfo que estende SalesOrderEntity, então tem esses campos
+  updateData.customerEmail = orderDetails.customer_email || null;
+  updateData.customerFirstname = orderDetails.customer_firstname || null;
+  updateData.customerLastname = orderDetails.customer_lastname || null;
+  
+  // Também atualizar billing e shipping names
+  updateData.billingFirstname = orderDetails.billing_firstname || null;
+  updateData.billingLastname = orderDetails.billing_lastname || null;
+  updateData.shippingFirstname = orderDetails.shipping_firstname || null;
+  updateData.shippingLastname = orderDetails.shipping_lastname || null;
+
+  // Atualizar status e estado se presentes
+  if (orderDetails.status) {
+    updateData.status = mapOrderStatus(orderDetails.status);
+  }
+  if (orderDetails.state) {
+    updateData.state = orderDetails.state;
+  }
+
+  // Atualizar valores financeiros se presentes
+  if (orderDetails.grand_total) {
+    updateData.grandTotal = parseFloat(orderDetails.grand_total);
+  }
+  if (orderDetails.subtotal) {
+    updateData.subtotal = parseFloat(orderDetails.subtotal);
+  }
+  if (orderDetails.tax_amount) {
+    updateData.taxAmount = parseFloat(orderDetails.tax_amount);
+  }
+  if (orderDetails.shipping_amount) {
+    updateData.shippingAmount = parseFloat(orderDetails.shipping_amount);
+  }
+  if (orderDetails.discount_amount) {
+    updateData.discountAmount = parseFloat(orderDetails.discount_amount);
+  }
 
   await prisma.order.update({
     where: { incrementId: keyIncrement },
@@ -1084,7 +1154,7 @@ export async function sync3Days(): Promise<SyncResult> {
         const previousStatus = existingOrder?.status;
         const previousState = existingOrder?.state;
 
-        // Salvar pedido básico
+        // Sempre salvar/atualizar pedido (mesmo se já existir, para capturar mudanças)
         await saveOrderToDatabase(orderDetails);
         ordersProcessed++;
 
@@ -1093,6 +1163,12 @@ export async function sync3Days(): Promise<SyncResult> {
         const hasStatusChanged =
           existingOrder && (previousStatus !== currentStatus || previousState !== currentState);
 
+        // Sempre salvar detalhes completos (para garantir que todos os dados estão atualizados)
+        const ok = await saveOrderDetailsToDatabase(orderDetails);
+        if (ok) {
+          detailsFetched++;
+        }
+
         if (isNew) {
           ordersCreated++;
           console.log(`✅ [${progress}%] ${currentIncrementId} - NOVO | Status: ${currentStatus}`);
@@ -1100,24 +1176,15 @@ export async function sync3Days(): Promise<SyncResult> {
           ordersUpdated++;
           statusChanged++;
           console.log(
-            `🔄 [${progress}%] ${currentIncrementId} - Status: ${previousStatus} → ${currentStatus}${previousState !== currentState ? ` | State: ${previousState} → ${currentState}` : ''}`
+            `🔄 [${progress}%] ${currentIncrementId} - ATUALIZADO | Status: ${previousStatus} → ${currentStatus}${previousState !== currentState ? ` | State: ${previousState} → ${currentState}` : ''}`
           );
         } else {
           ordersUpdated++;
-          console.log(`⏭️  [${progress}%] ${currentIncrementId} - Sem mudanças | Status: ${currentStatus}`);
+          console.log(`🔄 [${progress}%] ${currentIncrementId} - ATUALIZADO | Status: ${currentStatus}`);
         }
 
-        // Salvar detalhes completos
-        const ok = await saveOrderDetailsToDatabase(orderDetails);
-        if (ok) {
-          detailsFetched++;
-          if (!existingOrder?.detailsFetched) {
-            console.log(`   📋 Detalhes salvos`);
-          }
-        }
-
-        // Delay entre requisições (menor que JOB2 pois processa mais pedidos)
-        await new Promise((r) => setTimeout(r, 300));
+        // Delay entre requisições (igual ao script: 1000ms)
+        await new Promise((r) => setTimeout(r, 1000));
       } catch (error: any) {
         console.error(`❌ [${progress}%] ${currentIncrementId} - Erro:`, error.message);
         errors.push(`Pedido ${currentIncrementId}: ${error.message}`);
@@ -1278,7 +1345,7 @@ export async function syncLast50(): Promise<SyncResult> {
         const previousStatus = existingOrder?.status;
         const previousState = existingOrder?.state;
 
-        // Salvar pedido básico
+        // Sempre salvar/atualizar pedido (mesmo se já existir, para capturar mudanças)
         await saveOrderToDatabase(orderDetails);
         ordersProcessed++;
 
@@ -1287,6 +1354,12 @@ export async function syncLast50(): Promise<SyncResult> {
         const hasStatusChanged =
           existingOrder && (previousStatus !== currentStatus || previousState !== currentState);
 
+        // Sempre salvar detalhes completos (para garantir que todos os dados estão atualizados)
+        const ok = await saveOrderDetailsToDatabase(orderDetails);
+        if (ok) {
+          detailsFetched++;
+        }
+
         if (isNew) {
           ordersCreated++;
           console.log(`✅ [${progress}%] ${currentIncrementId} - NOVO | Status: ${currentStatus}`);
@@ -1294,24 +1367,15 @@ export async function syncLast50(): Promise<SyncResult> {
           ordersUpdated++;
           statusChanged++;
           console.log(
-            `🔄 [${progress}%] ${currentIncrementId} - Status: ${previousStatus} → ${currentStatus}${previousState !== currentState ? ` | State: ${previousState} → ${currentState}` : ''}`
+            `🔄 [${progress}%] ${currentIncrementId} - ATUALIZADO | Status: ${previousStatus} → ${currentStatus}${previousState !== currentState ? ` | State: ${previousState} → ${currentState}` : ''}`
           );
         } else {
           ordersUpdated++;
-          console.log(`⏭️  [${progress}%] ${currentIncrementId} - Sem mudanças | Status: ${currentStatus}`);
+          console.log(`🔄 [${progress}%] ${currentIncrementId} - ATUALIZADO | Status: ${currentStatus}`);
         }
 
-        // Salvar detalhes completos
-        const ok = await saveOrderDetailsToDatabase(orderDetails);
-        if (ok) {
-          detailsFetched++;
-          if (!existingOrder?.detailsFetched) {
-            console.log(`   📋 Detalhes salvos`);
-          }
-        }
-
-        // Delay entre requisições
-        await new Promise((r) => setTimeout(r, 500));
+        // Delay entre requisições (igual ao script: 1000ms)
+        await new Promise((r) => setTimeout(r, 1000));
       } catch (error: any) {
         console.error(`❌ [${progress}%] ${currentIncrementId} - Erro:`, error.message);
         errors.push(`Pedido ${currentIncrementId}: ${error.message}`);
